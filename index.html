@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <title>Gerenciador de Arquivos</title>
+  <style>
+    body {
+      font-family: sans-serif;
+      background: #000000;
+      padding: 20px;
+    }
+
+    h2 { text-align: center; }
+
+    #uploadForm, #logoutForm {
+      text-align: center;
+      margin-bottom: 15px;
+    }
+
+    .arquivo {
+      background: rgb(255, 255, 255);
+      padding: 16px;
+      margin: 12px auto;
+      width: 50%;
+      border-radius: 6px;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .nome {
+      display: flex;
+      align-items: center;
+    }
+
+    .miniatura {
+      width: 100px;
+      height: 100px;
+      object-fit: cover;
+      border-radius: 4px;
+      margin-right: 12px;
+    }
+
+    button {
+      margin-left: 8px;
+      padding: 5px 10px;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+
+    button:hover {
+      background-color: #30f00a;
+      margin-left:12px;
+      padding: 9px 14px;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+    }    
+    
+
+
+    .view { background: #8e44ad; color: white; }
+    .delete { background: #e74c3c; color: white; }
+    .move { background: #2980b9; color: white; }
+    .folder-link { background: #3498db; color: white; padding: 6px 10px; border-radius: 4px; }
+
+    a { text-decoration: none; color: white; font-weight: bold; }
+  </style>
+</head>
+<body>
+
+<form id="logoutForm" action="/logout" method="get">
+  <button type="submit" style="background:#e67e22; color:white;">🚪 Sair</button>
+</form>
+
+<h2 style="color: white;">📁 Navegando: {{ pasta or '/' }}</h2>
+
+<form id="uploadForm" action="/upload" method="POST" enctype="multipart/form-data">
+  <input type="hidden" name="pasta" value="{{ pasta }}">
+  <input type="file" name="file" required>
+  <button type="submit">📤 Upload</button>
+</form>
+
+<ul id="lista">
+  {% if arquivos|length == 0 %}
+    <li style="text-align: center; padding: 20px; color: white;">📭 Nenhum arquivo encontrado.</li>
+  {% endif %}
+  {% for arq in arquivos %}
+  <li class="arquivo">
+    <div class="nome">
+      {% set caminho = (pasta ~ '/' if pasta else '') ~ arq.nome %}
+      {% if arq.eh_pasta %}
+        <img class="miniatura" src="https://cdn-icons-png.flaticon.com/512/3767/3767084.png" />
+        <a class="folder-link" href="{{ url_for('index', subpath=caminho) }}">{{ arq.nome }}</a>
+      {% else %}
+        {% set ext = arq.nome.split('.')[-1].lower() %}
+        {% if ext in ['jpg', 'jpeg', 'png', 'gif'] %}
+          <img class="miniatura" src="{{ url_for('baixar_arquivo', filepath=caminho) }}" />
+        {% else %}
+          <img class="miniatura" src="https://img.icons8.com/ios-filled/50/document.png" />
+        {% endif %}
+        <span>{{ arq.nome }}</span>
+      {% endif %}
+    </div>
+    <div class="buttons">
+      <button class="view" onclick="verArquivo('{{ caminho }}')">👁 Visualizar</button>
+      <button class="delete" onclick="apagarArquivo(this, '{{ caminho }}')">🗑 Apagar</button>
+      <button class="move" onclick="mostrarMover(this, '{{ caminho }}')">📁 Mover</button>
+      <select class="destino" style="display:none;" onchange="moverPara(this, '{{ caminho }}')">
+        <option disabled selected>Destino</option>
+        {% for pasta_dest in pastas %}
+          {% if pasta_dest != pasta.split('/')[-1] %}
+            <option value="{{ pasta_dest }}">{{ pasta_dest }}</option>
+          {% endif %}
+        {% endfor %}
+      </select>
+    </div>
+  </li>
+  {% endfor %}
+</ul>
+
+<script>
+  function verArquivo(caminho) {
+    window.open('/ver/' + caminho, '_blank');
+  }
+
+  function apagarArquivo(btn, caminho) {
+    if (!confirm('Apagar "' + caminho + '"?')) return;
+    fetch('/delete/' + caminho, { method: 'DELETE' })
+      .then(r => r.json())
+      .then(data => {
+        if (data.status === 'ok') btn.closest('li').remove();
+        else alert("Erro: " + data.mensagem);
+      });
+  }
+
+  function mostrarMover(botao, origem) {
+    const select = botao.nextElementSibling;
+    select.style.display = 'inline-block';
+    botao.style.display = 'none';
+  }
+
+  function moverPara(select, origem) {
+    const destino = select.value;
+    fetch('/move', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: `from=${encodeURIComponent(origem)}&to=${encodeURIComponent(destino)}`
+    })
+    .then(r => r.json())
+    .then(data => {
+      if (data.status === 'ok') {
+        alert("Movido com sucesso!");
+        location.reload();
+      } else {
+        alert("Erro ao mover: " + data.mensagem);
+      }
+    });
+  }
+</script>
+
+</body>
+</html>
